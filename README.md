@@ -10,7 +10,7 @@ Convert your .XER files into seperate CSVs for parsing and transforming in other
 
 ## Setup / Usage
 
-I'm working on making this a complete package to be installed via pip and other package managers. 
+I'm working on making this a complete package to be installed via pip and other package managers -> Something I've never done before
 
 ``` 
 usage: XER Parser [-h] [-csv | -xlsx] [-i] [-o] [-cli] [-a]
