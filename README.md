@@ -5,7 +5,7 @@ Convert your .XER files into seperate CSVs for parsing and transforming in other
 ## Features include
 - CSV output of .XER files
 - GUI and CLI available
-- Optionally ignore problematic RISKTYPE & POMS tables
+- Optionally ignore problematic RISKTYPE & POBS tables
 - Basic metrics (Total tables & rows)
 
 ## Setup / Usage
@@ -24,5 +24,5 @@ optional arguments:
   -i , --inputFile     The path to the input .xer file
   -o , --outputDir     The directory where the output files will be placed
   -cli, --suppressGui  Show the GUI
-  -a, --allTables      Parse all tables - Turn on to stop skipping RISKTYPE & POMS tables
+  -a, --allTables      Parse all tables - Turn on to stop skipping RISKTYPE & POBS tables
 ```
