@@ -94,7 +94,9 @@ def UpdateGui(success=None, tables=-1, rows=-1, writtenTables=-1, writtenRows=-1
     if tables != -1 or rows != -1:
 
         window["-STATSTEXT-"].update(visible=True)
+
         valueString = f"{str(writtenRows)}/{str(rows)} rows, {str(writtenTables)}/{str(tables)} tables"
+        
         window["-STATSTEXT-"].update(value=valueString)
 
 
@@ -140,7 +142,7 @@ def PreCheck(file):
                 elif rowType == "%E": eof = True
                 
             UpdateGui(tables=totalTables, rows=totalRows, writtenTables=0, writtenRows=0)
-            
+
     except BaseException as e:
         print("Critical error during Pre Check of XER File")
         print(f"{type(e).__name__} was caught")
