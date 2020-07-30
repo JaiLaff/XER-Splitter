@@ -26,3 +26,11 @@ optional arguments:
   -cli, --suppressGui  Show the GUI
   -a, --allTables      Parse all tables - Turn on to stop skipping RISKTYPE & POBS tables
 ```
+
+## Build / Run
+
+For now, a build can be found in **dist** or you can build the file yourself using pyinstaller
+
+```
+pyinstaller NewSplitter.py --onefile
+```
