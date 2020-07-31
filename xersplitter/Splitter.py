@@ -9,7 +9,7 @@ import openpyxl as xl
 
 def InitParser():
     global parser 
-    parser = argparse.ArgumentParser(description="A script to parse those pesky .xer files from Primavera P6", prog="XER Parser")
+    parser = argparse.ArgumentParser(description="A script to parse those pesky .xer files from Primavera P6", prog="xersplitter")
 
     fileTypeGroup = parser.add_mutually_exclusive_group()
     fileTypeGroup.add_argument("-csv", help="Comma seperated output", action="store_const", dest="type", const="csv")
@@ -17,8 +17,8 @@ def InitParser():
 
     parser.add_argument("-i","--inputFile", help="The path to the input .xer file",type=str,default="", metavar="")
     parser.add_argument("-o","--outputDir", help="The directory where the output files will be placed", type=str,default="",metavar="")
-    parser.add_argument("-cli", "--suppressGui", help="Show the GUI" ,action="store_true")
-    parser.add_argument("-a", "--allTables", help="Parse all tables - Turn on to stop skipping RISKTYPE & POBS tables", action="store_true")
+    parser.add_argument("-cli", "--suppressGui", help="Hide the GUI - opens by default" ,action="store_true")
+    parser.add_argument("-a", "--allTables", help="Parse all tables - Skips possibly problematic RISKTYPE & POBS tables by default", action="store_true")
 
     parser.set_defaults(type="csv")
     
