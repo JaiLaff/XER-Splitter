@@ -1,9 +1,9 @@
-# XER-Parser
+# XER-Splitter
 A tool to handle the parsing of Oracles Primavera P6 .XER output files.
 Convert your .XER files into seperate CSVs for parsing and transforming in other tools (eg. PowerBI for reporting)
 
 ## Features include
-- CSV output of .XER files
+- CSV and XLSX output of .XER files
 - GUI and CLI available
 - Optionally ignore problematic RISKTYPE & POBS tables
 - Basic metrics (Total tables & rows)
