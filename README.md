@@ -9,6 +9,7 @@ Convert your .XER files into seperate CSVs for parsing and transforming in other
 - GUI and CLI available
 - Optionally ignore problematic RISKTYPE & POBS tables
 - Basic metrics (Total tables & rows)
+- Sample XERs [here](tests/Example-XERs)
 
 ## Installation
 
