@@ -5,7 +5,7 @@ with open("README.md", "r") as readme:
 
 
 setup(name='xersplitter',
-      version='1.0.1',
+      version='1.1.0',
       description='Split your Primavera P6 .XER files into CSV or XLSX files',
       long_description = long_description,
       long_description_content_type = "text/markdown",
