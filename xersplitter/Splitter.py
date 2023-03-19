@@ -8,6 +8,24 @@ import argparse
 import _thread
 import openpyxl as xl
 
+class Table:
+    def __init__(self, table_name:str=None):
+        self.name = table_name
+        self.rows = []
+
+    def addData(self, row:list=[]):
+        if len(row) > 0:
+            self.rows.append(row)
+
+class Plan:
+    def __init__(self, plan_name: str = None):
+        self.name = plan_name
+        self.tables = []
+
+    def addTable(self, table:Table=None):
+        if table:
+            self.tables.append(table)
+
 def InitParser():
     global parser 
     parser = argparse.ArgumentParser(description="A script to parse those pesky .xer files from Primavera P6", prog="xersplitter")
@@ -20,6 +38,8 @@ def InitParser():
     parser.add_argument("-o","--outputDir", help="The directory where the output files will be placed", type=str,default="",metavar="")
     parser.add_argument("-cli", "--suppressGui", help="Hide the GUI - opens by default" ,action="store_true")
     parser.add_argument("-a", "--allTables", help="Parse all tables - Skips possibly problematic RISKTYPE & POBS tables by default", action="store_true")
+    parser.add_argument("-s", "--stitch", help="Stitch all output files into a single XER file", action="store_true")
+
 
     parser.set_defaults(type="csv")
     
@@ -165,20 +185,22 @@ def PreCheck(args):
     return True
 
 
-def WriteCSV(outputDir, tableTitle, rows):
+def WriteCSV(outputDir, table:Table):
 
     try:
-        with open(os.path.join(outputDir,tableTitle + ".csv"), "w+", newline="") as outFile:
+        with open(os.path.join(outputDir,table.name + ".csv"), "w+", newline="") as outFile:
 
-            csv.writer(outFile, quoting=csv.QUOTE_NONNUMERIC).writerows(rows)
+            csv.writer(outFile, quoting=csv.QUOTE_NONNUMERIC).writerows(table.rows)
     except BaseException as e:
-        print(f"Critical error during writing of table {tableTitle}")
+        print(f"Critical error during writing of table {table.name}")
         print(f"{type(e).__name__} was caught")
         print(str(e))
     else:
-        print(f"INFO: {tableTitle} written to file successfully")
+        print(f"INFO: {table.name} written to file successfully")
 
-def WriteXLSX(outputDir, tableTitle, rows):
+def WriteXLSX(outputDir, table:Table):
+    
+   
     try:
         wb = None
         sheetToWrite = None
@@ -186,50 +208,50 @@ def WriteXLSX(outputDir, tableTitle, rows):
             # New excel workbook
             wb = xl.Workbook()
             sheetToWrite = wb.active
-            sheetToWrite.title = tableTitle
+            sheetToWrite.title = table.name
         else:
             # open existing workbook
             wb = xl.load_workbook(outputDir)
-            sheetToWrite = wb.create_sheet(tableTitle)
+            sheetToWrite = wb.create_sheet(table.name)
 
         # The write
-        for row, rowval in enumerate(rows, start=1):
+        for row, rowval in enumerate(table.rows, start=1):
             for col, colval in enumerate(rowval, start=1):
                 sheetToWrite.cell(row=row, column=col).value = colval
         wb.save(outputDir)
 
     except BaseException as e:
-        print(f"Critical error during writing of table {tableTitle}")
+        print(f"Critical error during writing of table {table.name}")
         print(f"{type(e).__name__} was caught")
         print(str(e))
     else:
-        print(f"INFO: {tableTitle} written to file successfully")
+        print(f"INFO: {table.name} written to file successfully")
 
 
-def WriteTable(args, tableTitle="", rows=[]):
-    print(f"Writing: {tableTitle} with {len(rows)} rows")
+def WriteTable(args, table:Table):
+    print(f"Writing: {table.name} with {len(table.rows)} rows")
 
     if args.type == "csv":
-        WriteCSV(args.outputDir,tableTitle, rows)
+        WriteCSV(args.outputDir,table)
     elif args.type == "xlsx":
-        # constructing output file dir
+         # constructing output file dir
         tail = os.path.split(args.inputFile)[1]
         filename = tail[:-3]
         outputDir = os.path.join(args.outputDir, filename)
-        WriteXLSX(outputDir + "xlsx",tableTitle, rows)
+        WriteXLSX(outputDir + "xlsx",table)
     
     global wrTables
     global wrRows
 
     wrTables += 1
-    wrRows += len(rows)
+    wrRows += len(table.rows)
     UpdateGui(args)
 
 def Split(args):
 
     eof = False
-    tableTitle = ""
-    rows = []
+    plan = Plan(plan_name=args.inputFile)
+    tableToWrite = None
 
     try:
         with open(args.inputFile, 'r', encoding="cp1252", errors="ignore") as xer:
@@ -245,15 +267,16 @@ def Split(args):
                 if rowType == "%T":
 
                     # Write previous table if available and flush the rows
-                    if len(rows) != 0:
-                        WriteTable(args, tableTitle=tableTitle, rows=rows)
-                        rows.clear()
+                    if tableToWrite:
+                        plan.addTable(tableToWrite)
+                        WriteTable(args, tableToWrite)
+                        tableToWrite = None
 
-                    tableTitle = currentLine[1]
+                    tableToWrite = Table(table_name=currentLine[1])
 
                     if not args.allTables:
-                        if tableTitle in ["POBS","RISKTYPE"]:
-                            print(f"Found table \"{tableTitle}\" - Skipping")
+                        if tableToWrite.name in ["POBS","RISKTYPE"]:
+                            print(f"Found table \"{tableToWrite.name}\" - Skipping")
                             
                             while xer.readline(2) != "%T":
                                 # save line position for when a table is found
@@ -263,21 +286,23 @@ def Split(args):
                             xer.seek(savedLine)
                             continue
 
-                    print(f"Found table \"{tableTitle}\"")
+                    print(f"Found table \"{tableToWrite.name}\"")
 
                 if rowType in ["%R", "%F"]:
                     currentLine.pop(0)
-                    rows.append(currentLine)
+                    tableToWrite.addData(currentLine)
 
             # Write remaining tables
-            if len(rows) != 0:
-                        WriteTable(args, tableTitle=tableTitle, rows=rows)
-                        rows.clear()
+            if tableToWrite:
+                plan.addTable(tableToWrite)
+                WriteTable(args, tableToWrite)
+                tableToWrite=None
 
     except BaseException as e:
         print(f"Critical error splitting XER")
         print(f"{type(e).__name__} was caught")
         print(str(e))
+        raise
     else:
         print(f"INFO: Split complete successfully")
         return True
