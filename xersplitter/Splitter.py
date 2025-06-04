@@ -1,10 +1,8 @@
-import csv
 import sys
 import os
 import time
 import argparse
 import threading
-import openpyxl as xl
 from Plan import Plan
 from Table import Table
 from GUI import GUI
@@ -14,24 +12,29 @@ class Splitter:
     def __init__(self):
         self.SKIPPABLE_TABLES = ["POBS","RISKTYPE"]
         self.args = self.ParseArgs()
-        self.gui = self.AttachGui()
+        self.gui = GUI(self.args) if not self.args.suppressGui else None
         self.plan = None
-        self.ZeroTableStats()
-
-
-    def Start(self):
+        self.totalTables = 0
+        self.wrTables = 0
+        self.skippedTables = 0
+        
+        # Start
         if self.gui is not None: 
-            self.RunGui()
+            while True:
+                event = self.gui.ProcessEvent()
+
+                if event == 1: self.StartSplitThread()
+                elif event == -1: break
         else:
             self.SplitXer()
-
+        
 
     def ParseArgs(self):
         parser = argparse.ArgumentParser(description="A script to parse those pesky .xer files from Primavera P6", prog="xersplitter")
 
         fileTypeGroup = parser.add_mutually_exclusive_group()
-        fileTypeGroup.add_argument("-csv", help="Comma seperated output", action="store_const", dest="type", const="csv")
-        fileTypeGroup.add_argument("-xlsx", help="Excel file output", action="store_const",dest="type", const="xlsx")
+        fileTypeGroup.add_argument("-csv", help="Comma seperated output", action="store_const", dest="filetype", const="csv")
+        fileTypeGroup.add_argument("-xlsx", help="Excel file output", action="store_const",dest="filetype", const="xlsx")
 
         parser.add_argument("-i","--inputFile", help="The path to the input .xer file",type=str,default="", metavar="")
         parser.add_argument("-o","--outputDir", help="The directory where the output files will be placed", type=str,default="",metavar="")
@@ -39,25 +42,11 @@ class Splitter:
         parser.add_argument("-a", "--allTables", help="Parse all tables - Skips possibly problematic RISKTYPE & POBS tables by default", action="store_true")
         parser.add_argument("-s", "--stitch", help="Stitch all output files into a single XER file", action="store_true")
 
-        parser.set_defaults(type="csv")
+        parser.set_defaults(filetype="csv")
         
         args = parser.parse_args()
         return args
 
-
-    def AttachGui(self):
-        if not self.args.suppressGui: 
-            return GUI(self.args)
-
-
-    def RunGui(self):
-        while True:
-            event = self.gui.ProcessEvent()
-
-            if event == 1: self.StartSplitThread()
-            elif event == -1: break
-
-        print("test")
 
     def ZeroTableStats(self):
         self.totalTables = 0
@@ -94,8 +83,8 @@ class Splitter:
         return True
 
 
-    def PreCheck(self):
-        print("INFO: Beginning PreCheck of the XER File")
+    def Validate(self):
+        print("INFO: Beginning validation of the XER File")
         
         eof = False
 
@@ -121,63 +110,21 @@ class Splitter:
         return True
 
 
-    def WriteCSV(self,outputDir, table:Table):
-        try:
-            with open(os.path.join(outputDir,table.name + ".csv"), "w+", newline="") as outFile:
+    def SplitXer(self):
+        print("INFO: Settings Confirmed")
+        print(self.args)
+        self.ZeroTableStats()
 
-                csv.writer(outFile, quoting=csv.QUOTE_NONNUMERIC).writerows(table.rows)
-        except BaseException as e:
-            print(f"Critical error during writing of table {table.name}")
-            print(f"{type(e).__name__} was caught")
-            print(str(e))
-        else:
-            print(f"INFO: {table.name} written to file successfully")
+        if not (self.CheckDirectories() and self.Validate() and self.Split()): 
+            self.gui.Update(success=False)
+            return
 
-
-    def WriteXLSX(self,outputDir, table:Table):
+        self.gui.Update(success=True)
         
-    
-        try:
-            wb = None
-            sheetToWrite = None
-            if not os.path.exists(outputDir):
-                # New excel workbook
-                wb = xl.Workbook()
-                sheetToWrite = wb.active
-                sheetToWrite.title = table.name
-            else:
-                # open existing workbook
-                wb = xl.load_workbook(outputDir)
-                sheetToWrite = wb.create_sheet(table.name)
 
-            # The write
-            for row, rowval in enumerate(table.rows, start=1):
-                for col, colval in enumerate(rowval, start=1):
-                    sheetToWrite.cell(row=row, column=col).value = colval
-            wb.save(outputDir)
-
-        except BaseException as e:
-            print(f"Critical error during writing of table {table.name}")
-            print(f"{type(e).__name__} was caught")
-            print(str(e))
-        else:
-            print(f"INFO: {table.name} written to file successfully")
-
-
-    def WriteTable(self, table:Table):
-        print(f"Writing: {table.name} with {len(table.rows)} rows")
-
-        if self.args.type == "csv":
-            self.WriteCSV(self.args.outputDir,table)
-        elif self.args.type == "xlsx":
-            # constructing output file dir
-            tail = os.path.split(self.args.inputFile)[1]
-            filename = tail[:-3]
-            outputDir = os.path.join(self.args.outputDir, filename)
-            self.WriteXLSX(outputDir + "xlsx",table)
-        
-        self.wrTables += 1
-        self.UpdateStatsToGui()
+    def StartSplitThread(self):
+        print("INFO: Starting Compute Thread...")
+        threading.Thread(target=self.SplitXer, daemon=True).start()
 
 
     def Split(self):
@@ -189,6 +136,9 @@ class Splitter:
             with open(self.args.inputFile, 'r', encoding="cp1252", errors="ignore") as xer:
                 while not eof:
                     currentLine = xer.readline().split('\t')
+                    
+                    # Remove new line char from end of line
+                    # [..,'value\n'] --> [..,'value']
                     currentLine[len(currentLine)-1] = currentLine[len(currentLine)-1][:-1]
 
                     rowType = currentLine[0]
@@ -201,10 +151,11 @@ class Splitter:
                         # Write previous table if available and flush the rows
                         if tableToWrite:
                             plan.addTable(tableToWrite)
-                            self.WriteTable(tableToWrite)
+                            tableToWrite.WriteTable(self.args.filetype, self.args.outputDir)
                             tableToWrite = None
+                            self.wrTables += 1
 
-                        tableToWrite = Table(table_name=currentLine[1])
+                        tableToWrite = plan.CreateTable(currentLine[1])
 
                         if not self.args.allTables:
                             if tableToWrite.name in self.SKIPPABLE_TABLES:
@@ -225,11 +176,12 @@ class Splitter:
                         currentLine.pop(0)
                         tableToWrite.addData(currentLine)
 
-                # Write remaining tables
+                # Write final table
                 if tableToWrite:
                     plan.addTable(tableToWrite)
-                    self.WriteTable(tableToWrite)
+                    tableToWrite.WriteTable(self.args.filetype,self.args.outputDir)
                     tableToWrite=None
+                    self.wrTables += 1
 
         except BaseException as e:
             print(f"Critical error splitting XER")
@@ -241,23 +193,5 @@ class Splitter:
             return True
         
 
-    def SplitXer(self):
-        print("INFO: Settings Confirmed")
-        print(self.args)
-        self.ZeroTableStats()
-
-        if not (self.CheckDirectories() and self.PreCheck() and self.Split()): 
-            self.gui.Update(success=False)
-            return
-
-        self.gui.Update(success=True)
-        
-
-    def StartSplitThread(self):
-        print("INFO: Starting Compute Thread...")
-        threading.Thread(target=self.SplitXer, daemon=True).start()
-
-
 if __name__ == "__main__":
-    splitter = Splitter()
-    splitter.Start()
+    Splitter()

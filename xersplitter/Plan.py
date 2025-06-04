@@ -6,6 +6,9 @@ class Plan:
         self.name = plan_name
         self.tables = []
 
+    def CreateTable(self, table:str=None):
+        return Table(table_name=table, plan_name=self.name)
+
     def addTable(self, table:Table=None):
         if table:
             self.tables.append(table)
